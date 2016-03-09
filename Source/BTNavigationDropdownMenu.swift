@@ -29,6 +29,18 @@ import UIKit
 // MARK: BTNavigationDropdownMenu
 public class BTNavigationDropdownMenu: UIView {
     
+    // The Selected Index
+    public var selectedIndexPath: Int {
+        get{
+            return self.tableView.selectedIndexPath;
+        }
+        set(value){
+            self.tableView.selectedIndexPath = selectedIndexPath;
+            self.tableView.reloadData();
+            
+        }
+    }
+    
     // The color of menu title. Default is darkGrayColor()
     public var menuTitleColor: UIColor! {
         get {
@@ -180,7 +192,7 @@ public class BTNavigationDropdownMenu: UIView {
     private var menuTitle: UILabel!
     private var menuArrow: UIImageView!
     private var backgroundView: UIView!
-    private var tableView: BTTableView!
+    var tableView: BTTableView!
     private var items: [AnyObject]!
     private var menuWrapper: UIView!
     
@@ -453,7 +465,7 @@ class BTTableView: UITableView, UITableViewDelegate, UITableViewDataSource {
     
     // Private properties
     private var items: [AnyObject]!
-    private var selectedIndexPath: Int!
+    var selectedIndexPath: Int!
     
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
