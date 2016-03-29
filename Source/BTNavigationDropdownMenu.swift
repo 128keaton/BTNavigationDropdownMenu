@@ -30,13 +30,10 @@ import UIKit
 public class BTNavigationDropdownMenu: UIView {
     
     // The Selected Index
-    public var selectedIndexPath: Int {
-        get{
-            return self.tableView.selectedIndexPath;
-        }
-        set(value){
-            self.tableView.selectedIndexPath = selectedIndexPath;
-            self.tableView.reloadData();
+    public var selectedIndexPath: Int = 0 {
+        didSet{
+            
+            self.tableView.selectRowAtIndexPathHandlerManual!(indexPath: selectedIndexPath)
             
         }
     }
@@ -195,17 +192,18 @@ public class BTNavigationDropdownMenu: UIView {
     var tableView: BTTableView!
     private var items: [AnyObject]!
     private var menuWrapper: UIView!
+    var maxTitleViewWidth: CGFloat! = UIScreen.mainScreen().bounds.width;
     
     required public init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
     
     @available(*, deprecated, message="Use init(navigationController:title:items:) instead", renamed="BTNavigationDropdownMenu(navigationController: UINavigationController?, title: String, items: [AnyObject])")
-    public convenience init(title: String, items: [AnyObject]) {
-        self.init(navigationController: nil, title: title, items: items)
+    public convenience init(title: String, items: [AnyObject], maxWidth: CGFloat) {
+        self.init(navigationController: nil, title: title, items: items, maxWidth: maxWidth)
     }
     
-    public init(navigationController: UINavigationController?, title: String, items: [AnyObject]) {
+    public init(navigationController: UINavigationController?, title: String, items: [AnyObject], maxWidth: CGFloat) {
         
         // Navigation controller
         if let navigationController = navigationController {
@@ -218,7 +216,11 @@ public class BTNavigationDropdownMenu: UIView {
         let titleSize = (title as NSString).sizeWithAttributes([NSFontAttributeName:self.configuration.cellTextLabelFont])
         
         // Set frame
-        let frame = CGRectMake(0, 0, titleSize.width + (self.configuration.arrowPadding + self.configuration.arrowImage.size.width)*2, self.navigationController!.navigationBar.frame.height)
+        var frame = CGRectMake(0, 0, titleSize.width + (self.configuration.arrowPadding + self.configuration.arrowImage.size.width)*2, self.navigationController!.navigationBar.frame.height)
+        
+        if frame.size.width > maxWidth {
+            frame.size.width = maxWidth;
+        }
         
         super.init(frame:frame)
         
@@ -239,7 +241,11 @@ public class BTNavigationDropdownMenu: UIView {
         self.menuTitle.text = title
         self.menuTitle.textColor = self.menuTitleColor
         self.menuTitle.font = self.configuration.cellTextLabelFont
-        self.menuTitle.textAlignment = self.configuration.cellTextLabelAlignment
+        self.menuTitle.textAlignment = NSTextAlignment.Center
+        self.menuTitle.numberOfLines = 1;
+        self.menuTitle.adjustsFontSizeToFitWidth = true;
+        self.menuTitle.minimumScaleFactor = 1.0;
+        self.menuTitle.clipsToBounds = true;
         self.menuButton.addSubview(self.menuTitle)
         
         self.menuArrow = UIImageView(image: self.configuration.arrowImage)
@@ -262,13 +268,19 @@ public class BTNavigationDropdownMenu: UIView {
         self.backgroundView.addGestureRecognizer(backgroundTapRecognizer)
         
         // Init table view
-        self.tableView = BTTableView(frame: CGRectMake(menuWrapperBounds.origin.x, menuWrapperBounds.origin.y + 0.5, menuWrapperBounds.width, menuWrapperBounds.height + 300), items: items, configuration: self.configuration)
+        self.tableView = BTTableView(frame: CGRectMake(menuWrapperBounds.origin.x, menuWrapperBounds.origin.y + 0.5, menuWrapperBounds.width, menuWrapperBounds.height + 300), items: items, configuration: self.configuration, selectedIndex: self.selectedIndexPath);
         
         self.tableView.selectRowAtIndexPathHandler = { (indexPath: Int) -> () in
             self.didSelectItemAtIndexHandler!(indexPath: indexPath)
             self.setMenuTitle("\(items[indexPath])")
             self.hideMenu()
             self.layoutSubviews()
+        }
+        
+        self.tableView.selectRowAtIndexPathHandlerManual = { (indexPath: Int) -> () in
+            self.setMenuTitle("\(items[indexPath])")
+            self.layoutSubviews()
+            self.tableView.selectedIndexPath = self.selectedIndexPath;
         }
         
         // Add background view & table view to container view
@@ -296,7 +308,17 @@ public class BTNavigationDropdownMenu: UIView {
     }
     
     override public func layoutSubviews() {
+
         self.menuTitle.sizeToFit()
+        
+        var frame = self.menuTitle.frame
+        
+        if(frame.size.width > self.menuTitle.superview?.frame.size.width){
+            frame.size.width = (self.menuTitle.superview?.frame.size.width)!;
+        }
+        
+        self.menuTitle.frame = frame;
+        
         self.menuTitle.center = CGPointMake(self.frame.size.width/2, self.frame.size.height/2)
         self.menuArrow.sizeToFit()
         self.menuArrow.center = CGPointMake(CGRectGetMaxX(self.menuTitle.frame) + self.configuration.arrowPadding, self.frame.size.height/2)
@@ -462,6 +484,7 @@ class BTTableView: UITableView, UITableViewDelegate, UITableViewDataSource {
     // Public properties
     var configuration: BTConfiguration!
     var selectRowAtIndexPathHandler: ((indexPath: Int) -> ())?
+    var selectRowAtIndexPathHandlerManual: ((indexPath: Int) -> ())?
     
     // Private properties
     private var items: [AnyObject]!
@@ -471,11 +494,11 @@ class BTTableView: UITableView, UITableViewDelegate, UITableViewDataSource {
         fatalError("init(coder:) has not been implemented")
     }
     
-    init(frame: CGRect, items: [AnyObject], configuration: BTConfiguration) {
+    init(frame: CGRect, items: [AnyObject], configuration: BTConfiguration, selectedIndex :Int) {
         super.init(frame: frame, style: UITableViewStyle.Plain)
         
         self.items = items
-        self.selectedIndexPath = 0
+        self.selectedIndexPath = selectedIndex;
         self.configuration = configuration
         
         // Setup table view
