@@ -26,17 +26,9 @@
 
 import UIKit
 
+
 // MARK: BTNavigationDropdownMenu
 public class BTNavigationDropdownMenu: UIView {
-    
-    // The Selected Index
-    public var selectedIndexPath: Int = 0 {
-        didSet{
-            
-            self.tableView.selectRowAtIndexPathHandlerManual!(indexPath: selectedIndexPath)
-            
-        }
-    }
     
     // The color of menu title. Default is darkGrayColor()
     public var menuTitleColor: UIColor! {
@@ -45,6 +37,14 @@ public class BTNavigationDropdownMenu: UIView {
         }
         set(value) {
             self.configuration.menuTitleColor = value
+        }
+    }
+    public var backgroundView: UIView! {
+        get {
+            return self.configuration.backgroundView
+        }
+        set(value) {
+            self.configuration.backgroundView = value
         }
     }
     
@@ -188,22 +188,21 @@ public class BTNavigationDropdownMenu: UIView {
     private var menuButton: UIButton!
     private var menuTitle: UILabel!
     private var menuArrow: UIImageView!
-    private var backgroundView: UIView!
-    var tableView: BTTableView!
+    private var tableView: BTTableView!
     private var items: [AnyObject]!
     private var menuWrapper: UIView!
-    var maxTitleViewWidth: CGFloat! = UIScreen.mainScreen().bounds.width;
+    private var tapView: UIView!
     
     required public init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
     
     @available(*, deprecated, message="Use init(navigationController:title:items:) instead", renamed="BTNavigationDropdownMenu(navigationController: UINavigationController?, title: String, items: [AnyObject])")
-    public convenience init(title: String, items: [AnyObject], maxWidth: CGFloat) {
-        self.init(navigationController: nil, title: title, items: items, maxWidth: maxWidth)
+    public convenience init(title: String, items: [AnyObject]) {
+        self.init(navigationController: nil, title: title, items: items)
     }
     
-    public init(navigationController: UINavigationController?, title: String, items: [AnyObject], maxWidth: CGFloat) {
+    public init(navigationController: UINavigationController?, title: String, items: [AnyObject]) {
         
         // Navigation controller
         if let navigationController = navigationController {
@@ -216,11 +215,7 @@ public class BTNavigationDropdownMenu: UIView {
         let titleSize = (title as NSString).sizeWithAttributes([NSFontAttributeName:self.configuration.cellTextLabelFont])
         
         // Set frame
-        var frame = CGRectMake(0, 0, titleSize.width + (self.configuration.arrowPadding + self.configuration.arrowImage.size.width)*2, self.navigationController!.navigationBar.frame.height)
-        
-        if frame.size.width > maxWidth {
-            frame.size.width = maxWidth;
-        }
+        let frame = CGRectMake(0, 0, titleSize.width + (self.configuration.arrowPadding + self.configuration.arrowImage.size.width)*2, self.navigationController!.navigationBar.frame.height)
         
         super.init(frame:frame)
         
@@ -241,11 +236,7 @@ public class BTNavigationDropdownMenu: UIView {
         self.menuTitle.text = title
         self.menuTitle.textColor = self.menuTitleColor
         self.menuTitle.font = self.configuration.cellTextLabelFont
-        self.menuTitle.textAlignment = NSTextAlignment.Center
-        self.menuTitle.numberOfLines = 1;
-        self.menuTitle.adjustsFontSizeToFitWidth = true;
-        self.menuTitle.minimumScaleFactor = 1.0;
-        self.menuTitle.clipsToBounds = true;
+        self.menuTitle.textAlignment = self.configuration.cellTextLabelAlignment
         self.menuButton.addSubview(self.menuTitle)
         
         self.menuArrow = UIImageView(image: self.configuration.arrowImage)
@@ -260,15 +251,22 @@ public class BTNavigationDropdownMenu: UIView {
         self.menuWrapper.autoresizingMask = UIViewAutoresizing.FlexibleWidth.union(UIViewAutoresizing.FlexibleHeight)
         
         // Init background view (under table view)
-        self.backgroundView = UIView(frame: menuWrapperBounds)
-        self.backgroundView.backgroundColor = self.configuration.maskBackgroundColor
-        self.backgroundView.autoresizingMask = UIViewAutoresizing.FlexibleWidth.union(UIViewAutoresizing.FlexibleHeight)
+
+        self.tapView = UIView(frame: menuWrapperBounds)
+        self.tapView.backgroundColor = self.configuration.maskBackgroundColor
+        self.tapView.autoresizingMask = UIViewAutoresizing.FlexibleWidth.union(UIViewAutoresizing.FlexibleHeight)
         
         let backgroundTapRecognizer = UITapGestureRecognizer(target: self, action: "hideMenu");
-        self.backgroundView.addGestureRecognizer(backgroundTapRecognizer)
+        self.tapView.addGestureRecognizer(backgroundTapRecognizer)
+        if self.backgroundView != nil {
+           
+            self.backgroundView.autoresizingMask = UIViewAutoresizing.FlexibleWidth
+             self.tableView.backgroundView = self.backgroundView
+        }
+       
         
         // Init table view
-        self.tableView = BTTableView(frame: CGRectMake(menuWrapperBounds.origin.x, menuWrapperBounds.origin.y + 0.5, menuWrapperBounds.width, menuWrapperBounds.height + 300), items: items, configuration: self.configuration, selectedIndex: self.selectedIndexPath);
+        self.tableView = BTTableView(frame: CGRectMake(menuWrapperBounds.origin.x, menuWrapperBounds.origin.y + 0.5, menuWrapperBounds.width, menuWrapperBounds.height + 300), items: items, configuration: self.configuration)
         
         self.tableView.selectRowAtIndexPathHandler = { (indexPath: Int) -> () in
             self.didSelectItemAtIndexHandler!(indexPath: indexPath)
@@ -277,14 +275,8 @@ public class BTNavigationDropdownMenu: UIView {
             self.layoutSubviews()
         }
         
-        self.tableView.selectRowAtIndexPathHandlerManual = { (indexPath: Int) -> () in
-            self.setMenuTitle("\(items[indexPath])")
-            self.layoutSubviews()
-            self.tableView.selectedIndexPath = self.selectedIndexPath;
-        }
-        
         // Add background view & table view to container view
-        self.menuWrapper.addSubview(self.backgroundView)
+        self.menuWrapper.addSubview(self.tapView)
         self.menuWrapper.addSubview(self.tableView)
         
         // Add Line on top
@@ -308,17 +300,7 @@ public class BTNavigationDropdownMenu: UIView {
     }
     
     override public func layoutSubviews() {
-
         self.menuTitle.sizeToFit()
-        
-        var frame = self.menuTitle.frame
-        
-        if(frame.size.width > self.menuTitle.superview?.frame.size.width){
-            frame.size.width = (self.menuTitle.superview?.frame.size.width)!;
-        }
-        
-        self.menuTitle.frame = frame;
-        
         self.menuTitle.center = CGPointMake(self.frame.size.width/2, self.frame.size.height/2)
         self.menuArrow.sizeToFit()
         self.menuArrow.center = CGPointMake(CGRectGetMaxX(self.menuTitle.frame) + self.configuration.arrowPadding, self.frame.size.height/2)
@@ -337,6 +319,8 @@ public class BTNavigationDropdownMenu: UIView {
     }
     
     func setupDefaultConfiguration() {
+ 
+        
         self.menuTitleColor = self.navigationController?.navigationBar.titleTextAttributes?[NSForegroundColorAttributeName] as? UIColor // Setter
         self.cellBackgroundColor = self.navigationController?.navigationBar.barTintColor
         self.cellSeparatorColor = self.navigationController?.navigationBar.titleTextAttributes?[NSForegroundColorAttributeName] as? UIColor
@@ -362,7 +346,7 @@ public class BTNavigationDropdownMenu: UIView {
         self.menuWrapper.hidden = false
         
         // Change background alpha
-        self.backgroundView.alpha = 0
+        self.tapView.alpha = 0
         
         // Animation
         self.tableView.frame.origin.y = -CGFloat(self.items.count) * self.configuration.cellHeight - 300
@@ -380,7 +364,7 @@ public class BTNavigationDropdownMenu: UIView {
             options: [],
             animations: {
                 self.tableView.frame.origin.y = CGFloat(-300)
-                self.backgroundView.alpha = self.configuration.maskBackgroundOpacity
+                self.tapView.alpha = self.configuration.maskBackgroundOpacity
             }, completion: nil
         )
     }
@@ -392,7 +376,7 @@ public class BTNavigationDropdownMenu: UIView {
         self.isShown = false
         
         // Change background alpha
-        self.backgroundView.alpha = self.configuration.maskBackgroundOpacity
+        self.tapView.alpha = self.configuration.maskBackgroundOpacity
         
         UIView.animateWithDuration(
             self.configuration.animationDuration * 1.5,
@@ -408,7 +392,7 @@ public class BTNavigationDropdownMenu: UIView {
         // Animation
         UIView.animateWithDuration(self.configuration.animationDuration, delay: 0, options: UIViewAnimationOptions.TransitionNone, animations: {
             self.tableView.frame.origin.y = -CGFloat(self.items.count) * self.configuration.cellHeight - 300
-            self.backgroundView.alpha = 0
+            self.tapView.alpha = 0
             }, completion: { _ in
                 self.menuWrapper.hidden = true
         })
@@ -447,6 +431,7 @@ class BTConfiguration {
     var animationDuration: NSTimeInterval!
     var maskBackgroundColor: UIColor!
     var maskBackgroundOpacity: CGFloat!
+    var backgroundView: UIView!
     
     init() {
         self.defaultValue()
@@ -484,30 +469,32 @@ class BTTableView: UITableView, UITableViewDelegate, UITableViewDataSource {
     // Public properties
     var configuration: BTConfiguration!
     var selectRowAtIndexPathHandler: ((indexPath: Int) -> ())?
-    var selectRowAtIndexPathHandlerManual: ((indexPath: Int) -> ())?
     
     // Private properties
     private var items: [AnyObject]!
-    var selectedIndexPath: Int!
+    private var selectedIndexPath: Int!
     
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
     
-    init(frame: CGRect, items: [AnyObject], configuration: BTConfiguration, selectedIndex :Int) {
+    init(frame: CGRect, items: [AnyObject], configuration: BTConfiguration) {
         super.init(frame: frame, style: UITableViewStyle.Plain)
         
         self.items = items
-        self.selectedIndexPath = selectedIndex;
+        self.selectedIndexPath = 0
         self.configuration = configuration
-        
+        self.backgroundColor = UIColor.clearColor()
         // Setup table view
         self.delegate = self
         self.dataSource = self
-        self.backgroundColor = UIColor.clearColor()
+        
         self.separatorStyle = UITableViewCellSeparatorStyle.None
         self.autoresizingMask = UIViewAutoresizing.FlexibleWidth
         self.tableFooterView = UIView(frame: CGRectZero)
+        if self.backgroundView != nil {
+            self.backgroundView = backgroundView
+        }
     }
     
     override func hitTest(point: CGPoint, withEvent event: UIEvent?) -> UIView? {
@@ -534,7 +521,7 @@ class BTTableView: UITableView, UITableViewDelegate, UITableViewDataSource {
         let cell = BTTableViewCell(style: UITableViewCellStyle.Default, reuseIdentifier: "Cell", configuration: self.configuration)
         cell.textLabel?.text = self.items[indexPath.row] as? String
         cell.checkmarkIcon.hidden = (indexPath.row == selectedIndexPath) ? false : true
-        
+
         return cell
     }
     
@@ -571,6 +558,11 @@ class BTTableViewCell: UITableViewCell {
         // Setup cell
         cellContentFrame = CGRectMake(0, 0, (UIApplication.sharedApplication().keyWindow?.frame.width)!, self.configuration.cellHeight)
         self.contentView.backgroundColor = self.configuration.cellBackgroundColor
+        let gradView = GradientView(frame: cellContentFrame)
+        gradView.direction = .Horizontal
+        gradView.colors = [UIColor(hue: 337/360, saturation: 69/100, brightness: 65/100, alpha: 1.0), UIColor(hue: 11/360, saturation: 73/100, brightness: 83/100, alpha: 1.0)]
+    
+        self.backgroundView = gradView
         self.selectionStyle = UITableViewCellSelectionStyle.None
         self.textLabel!.textColor = self.configuration.cellTextLabelColor
         self.textLabel!.font = self.configuration.cellTextLabelFont
@@ -679,3 +671,265 @@ extension UIViewController {
         return self.topPresentedViewController?.topVisibleViewController
     }
 }
+
+//
+//  GradientView.swift
+//  Gradient View
+//
+//  Created by Sam Soffes on 10/27/09.
+//  Copyright (c) 2009-2014 Sam Soffes. All rights reserved.
+//
+
+import UIKit
+
+/// Simple view for drawing gradients and borders.
+@IBDesignable
+public class GradientView: UIView {
+    
+    // MARK: - Types
+    
+    /// The mode of the gradient.
+    public enum Type {
+        /// A linear gradient.
+        case Linear
+        
+        /// A radial gradient.
+        case Radial
+    }
+    
+    
+    /// The direction of the gradient.
+    public enum Direction {
+        /// The gradient is vertical.
+        case Vertical
+        
+        /// The gradient is horizontal
+        case Horizontal
+    }
+    
+    
+    // MARK: - Properties
+    
+    /// An optional array of `UIColor` objects used to draw the gradient. If the value is `nil`, the `backgroundColor`
+    /// will be drawn instead of a gradient. The default is `nil`.
+    public var colors: [UIColor]? {
+        didSet {
+            updateGradient()
+        }
+    }
+    
+    /// An array of `UIColor` objects used to draw the dimmed gradient. If the value is `nil`, `colors` will be
+    /// converted to grayscale. This will use the same `locations` as `colors`. If length of arrays don't match, bad
+    /// things will happen. You must make sure the number of dimmed colors equals the number of regular colors.
+    ///
+    /// The default is `nil`.
+    public var dimmedColors: [UIColor]? {
+        didSet {
+            updateGradient()
+        }
+    }
+    
+    /// Automatically dim gradient colors when prompted by the system (i.e. when an alert is shown).
+    ///
+    /// The default is `true`.
+    public var automaticallyDims: Bool = true
+    
+    /// An optional array of `CGFloat`s defining the location of each gradient stop.
+    ///
+    /// The gradient stops are specified as values between `0` and `1`. The values must be monotonically increasing. If
+    /// `nil`, the stops are spread uniformly across the range.
+    ///
+    /// Defaults to `nil`.
+    public var locations: [CGFloat]? {
+        didSet {
+            updateGradient()
+        }
+    }
+    
+    /// The mode of the gradient. The default is `.Linear`.
+    @IBInspectable
+    public var mode: Type = .Linear {
+        didSet {
+            setNeedsDisplay()
+        }
+    }
+    
+    /// The direction of the gradient. Only valid for the `Mode.Linear` mode. The default is `.Vertical`.
+    @IBInspectable
+    public var direction: Direction = .Vertical {
+        didSet {
+            setNeedsDisplay()
+        }
+    }
+    
+    /// 1px borders will be drawn instead of 1pt borders. The default is `true`.
+    @IBInspectable
+    public var drawsThinBorders: Bool = true {
+        didSet {
+            setNeedsDisplay()
+        }
+    }
+    
+    /// The top border color. The default is `nil`.
+    @IBInspectable
+    public var topBorderColor: UIColor? {
+        didSet {
+            setNeedsDisplay()
+        }
+    }
+    
+    /// The right border color. The default is `nil`.
+    @IBInspectable
+    public var rightBorderColor: UIColor? {
+        didSet {
+            setNeedsDisplay()
+        }
+    }
+    
+    ///  The bottom border color. The default is `nil`.
+    @IBInspectable
+    public var bottomBorderColor: UIColor? {
+        didSet {
+            setNeedsDisplay()
+        }
+    }
+    
+    /// The left border color. The default is `nil`.
+    @IBInspectable
+    public var leftBorderColor: UIColor? {
+        didSet {
+            setNeedsDisplay()
+        }
+    }
+    
+    
+    // MARK: - UIView
+    
+    override public func drawRect(rect: CGRect) {
+        let context = UIGraphicsGetCurrentContext()
+        let size = bounds.size
+        
+        // Gradient
+        if let gradient = gradient {
+            let options: CGGradientDrawingOptions = [.DrawsAfterEndLocation]
+            
+            if mode == .Linear {
+                let startPoint = CGPointZero
+                let endPoint = direction == .Vertical ? CGPoint(x: 0, y: size.height) : CGPoint(x: size.width, y: 0)
+                CGContextDrawLinearGradient(context, gradient, startPoint, endPoint, options)
+            } else {
+                let center = CGPoint(x: bounds.midX, y: bounds.midY)
+                CGContextDrawRadialGradient(context, gradient, center, 0, center, min(size.width, size.height) / 2, options)
+            }
+        }
+        
+        let screen: UIScreen = window?.screen ?? UIScreen.mainScreen()
+        let borderWidth: CGFloat = drawsThinBorders ? 1.0 / screen.scale : 1.0
+        
+        // Top border
+        if let color = topBorderColor {
+            CGContextSetFillColorWithColor(context, color.CGColor)
+            CGContextFillRect(context, CGRect(x: 0, y: 0, width: size.width, height: borderWidth))
+        }
+        
+        let sideY: CGFloat = topBorderColor != nil ? borderWidth : 0
+        let sideHeight: CGFloat = size.height - sideY - (bottomBorderColor != nil ? borderWidth : 0)
+        
+        // Right border
+        if let color = rightBorderColor {
+            CGContextSetFillColorWithColor(context, color.CGColor)
+            CGContextFillRect(context, CGRect(x: size.width - borderWidth, y: sideY, width: borderWidth, height: sideHeight))
+        }
+        
+        // Bottom border
+        if let color = bottomBorderColor {
+            CGContextSetFillColorWithColor(context, color.CGColor)
+            CGContextFillRect(context, CGRect(x: 0, y: size.height - borderWidth, width: size.width, height: borderWidth))
+        }
+        
+        // Left border
+        if let color = leftBorderColor {
+            CGContextSetFillColorWithColor(context, color.CGColor)
+            CGContextFillRect(context, CGRect(x: 0, y: sideY, width: borderWidth, height: sideHeight))
+        }
+    }
+    
+    override public func tintColorDidChange() {
+        super.tintColorDidChange()
+        
+        if automaticallyDims {
+            updateGradient()
+        }
+    }
+    
+    override public func didMoveToWindow() {
+        super.didMoveToWindow()
+        contentMode = .Redraw
+    }
+    
+    
+    // MARK: - Private
+    
+    private var gradient: CGGradientRef?
+    
+    private func updateGradient() {
+        gradient = nil
+        setNeedsDisplay()
+        
+        let colors = gradientColors()
+        if let colors = colors {
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+            let colorSpaceModel = CGColorSpaceGetModel(colorSpace)
+            
+            let gradientColors: NSArray = colors.map { (color: UIColor) -> AnyObject! in
+                let cgColor = color.CGColor
+                let cgColorSpace = CGColorGetColorSpace(cgColor)
+                
+                // The color's color space is RGB, simply add it.
+                if CGColorSpaceGetModel(cgColorSpace).rawValue == colorSpaceModel.rawValue {
+                    return cgColor as AnyObject!
+                }
+                
+                // Convert to RGB. There may be a more efficient way to do this.
+                var red: CGFloat = 0
+                var blue: CGFloat = 0
+                var green: CGFloat = 0
+                var alpha: CGFloat = 0
+                color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+                return UIColor(red: red, green: green, blue: blue, alpha: alpha).CGColor as AnyObject!
+            }
+            
+            // TODO: This is ugly. Surely there is a way to make this more concise.
+            if let locations = locations {
+                gradient = CGGradientCreateWithColors(colorSpace, gradientColors, locations)
+            } else {
+                gradient = CGGradientCreateWithColors(colorSpace, gradientColors, nil)
+            }
+        }
+    }
+    
+    private func gradientColors() -> [UIColor]? {
+        if tintAdjustmentMode == .Dimmed {
+            if let dimmedColors = dimmedColors {
+                return dimmedColors
+            }
+            
+            if automaticallyDims {
+                if let colors = colors {
+                    return colors.map {
+                        var hue: CGFloat = 0
+                        var brightness: CGFloat = 0
+                        var alpha: CGFloat = 0
+                        
+                        $0.getHue(&hue, saturation: nil, brightness: &brightness, alpha: &alpha)
+                        
+                        return UIColor(hue: hue, saturation: 0, brightness: brightness, alpha: alpha)
+                    }
+                }
+            }
+        }
+        
+        return colors
+    }
+}
+
